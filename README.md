@@ -191,13 +191,14 @@ remove with `.unpersist`
 
 e.g.
 
-        class LazyPrng {
-            @transient lazy val r = new Random()
-        }
+```
+class LazyPrng {
+    @transient lazy val r = new Random()
+}
 
-        val b = sc.broadcast(new LazyPrng())
-        ... rdd.doThing( b.value.r.nextInt )
-
+val b = sc.broadcast(new LazyPrng())
+... rdd.doThing( b.value.r.nextInt )
+```
 
 #### Accumulators
 - good for process-level info e.g. time taken
@@ -289,6 +290,82 @@ job and with same partitioner and cached
 #### SecondarySort
 term from MapReduce, some sorting is done as part of the shuffle
 
+### Memory
+
+Java objects are fast to access, but can easily consume a factor of 2-5x
+more space than the “raw” data. This is due to object headers that point
+to the class; and String representation as a char array; boxed primitives;
+wrapper objects in maps (Entry) etc.
+
+#### Kyro
+Serialization format used for simple types. When using you own class then
+it is recommended to register them with Kyro, o.w. Java Serialization is
+used.
+
+`conf.registerKryoClasses(Array(classOf[MyClass1], classOf[MyClass2]))`
+
+- if you don’t register your custom classes, Kryo will still work,
+but it will have to store the full class name with each object
+
+### Tuning
+
+- 3 parts: *amount used*; *cost of access*; *GC*
+
+#### usage
+usage in Spark largely falls under one of two categories: execution and storage
+
+execution is as it sounds, storage is caching / propagating across cluster
+
+Denote M as the memory available. There are 2 important properties:
+
+- *spark.memory.fraction*
+expresses the size of M as a fraction of the
+(JVM heap space - 300MB) (default 0.6). The rest of the space (40%)
+is reserved for user data structures, internal metadata in Spark,
+and safeguarding against OOM errors in the case of sparse and
+unusually large records
+
+- *spark.memory.storageFraction*
+expresses the size of R as a fraction of M (default 0.5).
+R is the storage space within M where cached blocks immune to
+being evicted by execution.
+
+#### GC
+
+The cost of garbage collection is proportional to the number of Java objects.
+Therefore, to reduce GC you need to reduce the number of objs. One of the
+best ways to do this is to keep data in serialized form - then each
+row is just one obj (byte array).
+
+To diagnose:
+collect statistics on how frequently garbage collection occurs and
+the amount of time spent GC.
+This can be done by adding
+
+`-verbose:gc -XX:+PrintGCDetails -XX:+PrintGCTimeStamps`
+
+to the Java options
+These logs will be on your cluster’s worker nodes
+(in the stdout files in their work directories), not on your driver program
+
+
+#### Data locality
+If data and the code that operates on it are together then computation
+tends to be fast. But if code and data are separated, one must move to the other.
+
+levels of locality based on the data’s current location:
+- PROCESS_LOCAL data is in the same JVM as the running code. This is the best locality possible
+- NODE_LOCAL data is on the same node. Examples might be in HDFS on the same node, or in another executor on the same node. This is a little slower than PROCESS_LOCAL because the data has to travel between processes
+- NO_PREF data is accessed equally quickly from anywhere and has no locality preference
+- RACK_LOCAL data is on the same rack of servers. Data is on a different server on the same rack so needs to be sent over the network, typically through a single switch
+- ANY elsewhere on the network and not in the same rack
+
+where there is no unprocessed data on any idle executor,
+Spark switches to lower locality levels. (It might start moving data
+around to get to a free CPU)
+
+
 #### Tips
 Think of keys as axis for parallelization (rather than logical grouping)
+
 
