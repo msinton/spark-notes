@@ -51,15 +51,22 @@ It is a self-describing data format, embedding the schema within the data.
 
     - There is no intermediate object model when converting
 
+![Interop_diagram](assets/parquet/parquet_interop.jpg)
+
 ##### Frameworks/libraries that have integrated Parquet:
 
 - Query engines: Hive, Impala, HAWQ, IBM SQL, Drill, Tajo, Pig, Presto
 - Frameworks: Spark, MapReduce, Cascading, Crunch, Scalding, Kite, NiFi
 - Data Models: Avro, Thrift, ProtocolBuffers, POJO
 
+Adopted in some scientific communities, such as CERN’s ROOT project
+
 ### Space efficient
 
 ##### Columnar
+
+![column format](assets/parquet/column_format.png)
+
 - Homogenous: all values for one column in sequence
     - encode array of values rather than individual values
 - [Dremel](https://blog.twitter.com/engineering/en_us/a/2013/dremel-made-simple-with-parquet.html)
@@ -72,7 +79,7 @@ used to transfer nested Data Structure into Columnar
 ##### Columnar
 - Predicate pushdown: Read only the columns needed (IO efficient)
 
-Optimized for the CPU, processor pipeline, to avoid jumps (make jumps
+Optimized for the CPU processor pipeline, to avoid jumps (make jumps
  in a way that is highly predictable by processor) and enable
 parallel processing that is independent from each other.
 
@@ -88,6 +95,17 @@ Examples:
 - Country code: Dictionary
 - Timestamp: Delta
 - Black and white text image: Run Length Encoding
+
+- Extensible: more encodings can be added
+
+#### Metadata
+Can be used to greatly reduce the IO.
+
+E.g `filter by age <= 20`
+
+There may be many **pages** of data and for each page the metadata will tell
+the range of data present. Then all pages with a age column min greater
+than 20 are skipped.
 
 #### Supported compressions
 - GZIP, SNAPPY, LZO, ZLIB
@@ -151,3 +169,19 @@ Compares to Avro on Spark.
     - GroupBy and Sum: parquet 1.8x faster
     - map: parquet 4x faster
     - compression: parquet 70% smaller
+
+## Apache Arrow
+
+Arrow can be thought of as the in-memory equivalent of Parquet.
+It's aim is to bridge the gap between different data formats with one
+common interface.
+
+For example, converting between Parquet and Pandas.
+
+> One of the funny things about computer science is that while there is a common set of resources – RAM, CPU, storage, network – each language has an entirely different way of interacting with those resources. When different programs need to interact – within and across languages – there are inefficiencies in the handoffs that can dominate the overall cost
+
+[_Dremio_](https://www.dremio.com/)
+
+>  Apache Arrow standardizes an efficient in-memory columnar representation that is the same as the wire representation. Today it includes first class bindings in over 13 projects, including Spark, Hadoop, R, Python/Pandas
+
+https://www.dremio.com/webinars/columnar-roadmap-apache-parquet-and-arrow/
